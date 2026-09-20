@@ -45,17 +45,28 @@ python scripts/seed_demo.py
 python scripts/bedrock_smoke_test.py
 ```
 
-### 6. Run health endpoint locally
+### 6. Run the Full Stack Locally
+
+#### Terminal 1 — Backend (FastAPI + AI Engine):
 ```bash
 cd backend
-uvicorn lambda.health.handler:app --reload --port 8000
-# Test: GET http://localhost:8000/health
+uvicorn main:app --reload --port 8000
+# OpenAPI Docs: http://localhost:8000/docs
 ```
 
-### 7. Run tests
+#### Terminal 2 — Frontend (React + Vite PWA):
+```bash
+cd frontend
+npm install
+npm run dev
+# Web App: http://localhost:5173
+```
+
+### 7. Run backend tests
 ```bash
 cd backend
 pytest ../tests/ -v
+python ../scripts/test_multipart_analyze.py
 ```
 
 ---

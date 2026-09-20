@@ -26,57 +26,10 @@ CONFIG_TABLE = os.getenv("DYNAMO_CONFIG_TABLE", "CampusCycle_Config")
 
 NOW = datetime.now(timezone.utc).isoformat()
 
-# ── Demo Demand Requests ───────────────────────────────────────────────────────
-DEMO_DEMANDS = [
-    {
-        "request_id": "demo-req-001",
-        "requester_id": "user-blockb-rahul",
-        "requester_alias": "Rahul B2",
-        "category": "electronics",
-        "keywords": ["hdmi", "cable", "monitor"],
-        "hostel": "Block B",
-        "block": "B2",
-        "campus_id": "campus-default",
-        "active": True,
-        "created_at": NOW,
-    },
-    {
-        "request_id": "demo-req-002",
-        "requester_id": "user-blockc-priya",
-        "requester_alias": "Priya C3",
-        "category": "electronics",
-        "keywords": ["fan", "table fan", "desk fan"],
-        "hostel": "Block C",
-        "block": "C3",
-        "campus_id": "campus-default",
-        "active": True,
-        "created_at": NOW,
-    },
-    {
-        "request_id": "demo-req-003",
-        "requester_id": "user-blocka-arjun",
-        "requester_alias": "Arjun A4",
-        "category": "furniture",
-        "keywords": ["chair", "study chair", "desk chair"],
-        "hostel": "Block A",
-        "block": "A4",
-        "campus_id": "campus-default",
-        "active": True,
-        "created_at": NOW,
-    },
-    {
-        "request_id": "demo-req-004",
-        "requester_id": "user-labclub",
-        "requester_alias": "CS Lab Club",
-        "category": "electronics",
-        "keywords": ["keyboard", "mechanical keyboard", "usb keyboard"],
-        "hostel": "Lab Block",
-        "block": "Lab 3",
-        "campus_id": "campus-default",
-        "active": True,
-        "created_at": NOW,
-    },
-]
+try:
+    from scripts.seed_aws_live import EXPANDED_DEMANDS as DEMO_DEMANDS
+except ImportError:
+    from seed_aws_live import EXPANDED_DEMANDS as DEMO_DEMANDS
 
 # ── Demo Config Rules ──────────────────────────────────────────────────────────
 DEMO_CONFIGS = [
@@ -110,7 +63,7 @@ def seed_table(table_name: str, items: list):
 
 
 def main():
-    print("\n🌱 CampusCycle AI — Seeding Demo Data")
+    print("\n🌱 CampusCycle AI — Seeding Expanded Demo Data")
     print(f"   Region: {REGION}")
     print()
 
@@ -118,8 +71,8 @@ def main():
     seed_table(CONFIG_TABLE, DEMO_CONFIGS)
 
     print()
-    print("✅ Demo data seeded. Ready for demo!")
-    print("   Demand requests: 4 seeded (HDMI cable, table fan, chair, keyboard)")
+    print("✅ Expanded campus data seeded into DynamoDB. Ready for demo!")
+    print(f"   Demand requests: {len(DEMO_DEMANDS)} student wishlists across campus dorms")
     print("   Config rules: 3 categories seeded")
 
 

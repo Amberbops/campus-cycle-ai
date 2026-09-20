@@ -196,14 +196,41 @@ Rules:
             try:
                 import httpx
                 import time
-                primary_model = os.getenv("GEMINI_MODEL_ID", settings.gemini_model_id or "gemini-3.6-flash")
-                candidates = list(dict.fromkeys([primary_model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]))
+                primary_model = os.getenv("GEMINI_MODEL_ID", settings.gemini_model_id or "gemini-2.5-flash")
+                candidates = list(dict.fromkeys([
+                    primary_model,
+                    "gemini-2.5-flash",
+                    "gemini-flash-latest",
+                    "gemini-2.5-flash-lite",
+                    "gemini-2.5-pro",
+                    "gemini-pro-latest",
+                ]))
+
+                # Validate image before passing to Gemini
+                valid_image = False
+                mime_type = "image/jpeg"
+                if image_bytes and len(image_bytes) > 50:
+                    try:
+                        from PIL import Image
+                        import io
+                        pil_img = Image.open(io.BytesIO(image_bytes))
+                        fmt = (pil_img.format or "JPEG").lower()
+                        if fmt == "png":
+                            mime_type = "image/png"
+                        elif fmt == "webp":
+                            mime_type = "image/webp"
+                        else:
+                            mime_type = "image/jpeg"
+                        valid_image = True
+                    except Exception as img_err:
+                        logger.info("Image header check: %s", img_err)
+                        valid_image = False
 
                 parts = [{"text": prompt_text}]
-                if b64_image:
+                if b64_image and valid_image:
                     parts.insert(0, {
                         "inline_data": {
-                            "mime_type": "image/jpeg",
+                            "mime_type": mime_type,
                             "data": b64_image,
                         }
                     })
@@ -376,20 +403,21 @@ def search_local_demand(
     """
     logger.info("search_local_demand: category=%s keywords=%s", category, keywords)
 
-    table = dynamodb.Table(settings.dynamo_demand_table)
+    items = []
+    try:
+        table = dynamodb.Table(settings.dynamo_demand_table)
+        filter_expr = boto3.dynamodb.conditions.Attr("active").eq(True) & \
+                      boto3.dynamodb.conditions.Attr("category").eq(category)
+        if hostel:
+            filter_expr = filter_expr & boto3.dynamodb.conditions.Attr("hostel").eq(hostel)
 
-    # Simple scan with filter (acceptable for MVP / demo scale)
-    filter_expr = boto3.dynamodb.conditions.Attr("active").eq(True) & \
-                  boto3.dynamodb.conditions.Attr("category").eq(category)
-
-    if hostel:
-        filter_expr = filter_expr & boto3.dynamodb.conditions.Attr("hostel").eq(hostel)
-
-    resp = table.scan(
-        FilterExpression=filter_expr,
-        Limit=50,  # scan up to 50, rank, then return top N
-    )
-    items = resp.get("Items", [])
+        resp = table.scan(
+            FilterExpression=filter_expr,
+            Limit=50,  # scan up to 50, rank, then return top N
+        )
+        items = resp.get("Items", [])
+    except Exception as ddb_err:
+        logger.warning("search_local_demand DynamoDB query note (%s); returning empty matches", ddb_err)
 
     keyword_list = [k.lower() for k in keywords.split() if k]
 

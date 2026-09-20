@@ -50,7 +50,7 @@ class Settings(BaseSettings):
 
     # Multimodal Fallback Provider (Google Gemini)
     gemini_api_key: str = ""
-    gemini_model_id: str = "gemini-3.6-flash"
+    gemini_model_id: str = "gemini-2.5-flash"
 
     # Agent
     agent_confidence_threshold: float = 0.55

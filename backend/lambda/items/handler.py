@@ -221,5 +221,104 @@ def record_impact(req: RecordImpactRequest):
     return {"impact_id": impact_id, "diverted_from_disposal": diverted}
 
 
+# ── Match Connection & AWS SES Email Dispatch ───────────────────────────────────
+
+SES_REGION = os.getenv("SES_REGION", os.getenv("AWS_REGION", "us-east-1"))
+MATCHES_TABLE = os.getenv("DYNAMO_MATCHES_TABLE", "CampusCycle_Matches")
+SES_SENDER_EMAIL = os.getenv("SES_SENDER_EMAIL", "notifications@campuscycle.edu")
+
+
+class ConnectMatchRequest(BaseModel):
+    match_id: Optional[str] = None
+    item_id: Optional[str] = None
+    item_name: str
+    condition: Optional[str] = "usable"
+    requester_alias: str
+    requester_email: Optional[str] = "student@campus.edu"
+    hostel_location: str = "Hostel 4 (Godavari)"
+    donor_alias: Optional[str] = "Campus Scout Peer"
+    message: Optional[str] = ""
+
+
+@app.post("/api/matches/connect")
+def connect_match(req: ConnectMatchRequest):
+    match_id = req.match_id or str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    # 1. Record match in DynamoDB
+    try:
+        table = dynamodb.Table(MATCHES_TABLE)
+        table.put_item(
+            Item={
+                "match_id": match_id,
+                "item_name": req.item_name,
+                "requester_alias": req.requester_alias,
+                "requester_email": req.requester_email,
+                "hostel_location": req.hostel_location,
+                "donor_alias": req.donor_alias,
+                "status": "paired",
+                "connected_at": now,
+            }
+        )
+    except Exception as exc:
+        logger.warning("Could not write to DynamoDB Matches table: %s", exc)
+
+    # 2. Dispatch Direct Notification Email via Amazon SES
+    email_subject = f"♻️ CampusCycle Match: Peer matched your request for {req.item_name}!"
+    email_body_html = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px;">
+        <div style="max-width: 540px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 24px;">
+          <h2 style="color: #2dd4bf; margin-top: 0;">CampusCycle AI · Match Connected</h2>
+          <p>Hi <b>{req.requester_alias}</b>,</p>
+          <p>Exciting news! A fellow student nearby has scanned an item matching your campus wishlist:</p>
+          <div style="background-color: #0f172a; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid #475569;">
+            <p style="margin: 0; font-size: 16px; font-weight: bold; color: #ffffff;">{req.item_name}</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;">Condition: <span style="color: #2dd4bf;">{req.condition}</span> · Location: {req.hostel_location}</p>
+          </div>
+          <p style="font-size: 14px; color: #cbd5e1;">Please coordinate handoff with your peer at <b>{req.hostel_location}</b>.</p>
+          <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #64748b; text-align: center;">Powered by CampusCycle Circular AI · Automated AWS SES Notification</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    ses_dispatched = False
+    ses_error = None
+    try:
+        ses_client = boto3.client("ses", region_name=SES_REGION)
+        ses_resp = ses_client.send_email(
+            Source=SES_SENDER_EMAIL,
+            Destination={"ToAddresses": [req.requester_email]},
+            Message={
+                "Subject": {"Data": email_subject},
+                "Body": {
+                    "Html": {"Data": email_body_html},
+                    "Text": {"Data": f"Hi {req.requester_alias}, a student in {req.hostel_location} has matched your request for {req.item_name}!"},
+                },
+            },
+        )
+        ses_dispatched = True
+        logger.info("SES email dispatched: messageId=%s", ses_resp.get("MessageId"))
+    except Exception as exc:
+        ses_error = str(exc)
+        logger.info("SES notice (sandbox/offline mode): %s", exc)
+
+    _record_audit(match_id, req.donor_alias or "student", "peer_match_connected", f"Matched {req.item_name} with {req.requester_alias} ({req.requester_email})")
+
+    return {
+        "status": "paired",
+        "match_id": match_id,
+        "recipient_alias": req.requester_alias,
+        "recipient_email": req.requester_email,
+        "ses_dispatched": ses_dispatched,
+        "ses_error": ses_error,
+        "subject": email_subject,
+        "preview": f"Hi {req.requester_alias}, a student in {req.hostel_location} has an item matching your wishlist!",
+    }
+
+
 handler = Mangum(app, lifespan="off")
 lambda_handler = handler
+
