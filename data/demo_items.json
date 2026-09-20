@@ -1,0 +1,44 @@
+[
+  {
+    "item_name": "HDMI Cable",
+    "category": "electronics",
+    "expected_path": "reuse",
+    "expected_match": "demo-req-001",
+    "demo_description": "Black HDMI cable, 1.5m, appears intact with no visible damage"
+  },
+  {
+    "item_name": "Table Fan",
+    "category": "electronics",
+    "expected_path": "repair",
+    "expected_match": "demo-req-002",
+    "demo_description": "Plastic table fan, physically intact but making noise; wiring not verifiable"
+  },
+  {
+    "item_name": "Study Chair",
+    "category": "furniture",
+    "expected_path": "reuse",
+    "expected_match": "demo-req-003",
+    "demo_description": "Padded study chair with minor scratches on legs; structurally intact"
+  },
+  {
+    "item_name": "Mechanical Keyboard",
+    "category": "electronics",
+    "expected_path": "reuse",
+    "expected_match": "demo-req-004",
+    "demo_description": "USB mechanical keyboard, all keys visible, minor dust accumulation"
+  },
+  {
+    "item_name": "Old Laptop",
+    "category": "electronics",
+    "expected_path": "manual_review",
+    "expected_match": null,
+    "demo_description": "Laptop circa 2016, battery condition unknown, screen has scratch"
+  },
+  {
+    "item_name": "Unknown Chemical Bottle",
+    "category": "misc",
+    "expected_path": "manual_review",
+    "expected_match": null,
+    "demo_description": "Unlabelled plastic bottle with unknown liquid residue"
+  }
+]

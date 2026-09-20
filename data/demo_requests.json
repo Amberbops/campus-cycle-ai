@@ -1,0 +1,38 @@
+[
+  {
+    "request_id": "demo-req-001",
+    "requester_alias": "Rahul B2",
+    "category": "electronics",
+    "keywords": ["hdmi", "cable", "monitor"],
+    "hostel": "Block B",
+    "block": "B2",
+    "note": "Needs an HDMI cable for connecting laptop to monitor in hostel room"
+  },
+  {
+    "request_id": "demo-req-002",
+    "requester_alias": "Priya C3",
+    "category": "electronics",
+    "keywords": ["fan", "table fan", "desk fan"],
+    "hostel": "Block C",
+    "block": "C3",
+    "note": "Room gets very hot in summer; needs a table fan"
+  },
+  {
+    "request_id": "demo-req-003",
+    "requester_alias": "Arjun A4",
+    "category": "furniture",
+    "keywords": ["chair", "study chair", "desk chair"],
+    "hostel": "Block A",
+    "block": "A4",
+    "note": "Study chair broke; needs replacement for semester exams"
+  },
+  {
+    "request_id": "demo-req-004",
+    "requester_alias": "CS Lab Club",
+    "category": "electronics",
+    "keywords": ["keyboard", "mechanical keyboard", "usb keyboard"],
+    "hostel": "Lab Block",
+    "block": "Lab 3",
+    "note": "Lab club needs keyboards for a programming workshop next month"
+  }
+]
