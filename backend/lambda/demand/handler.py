@@ -42,18 +42,22 @@ class CreateDemandRequest(BaseModel):
     hostel: str
     block: Optional[str] = None
     campus_id: str = "campus-default"
+    urgency: Optional[str] = "medium"
 
 
 @app.get("/api/demand")
-def search_demand(category: str = "", hostel: str = "", limit: int = 10):
+def search_demand(category: str = "", hostel: str = "", limit: int = 50):
     table = dynamodb.Table(DEMAND_TABLE)
     filter_expr = Attr("active").eq(True)
-    if category:
-        filter_expr = filter_expr & Attr("category").eq(category)
-    if hostel:
-        filter_expr = filter_expr & Attr("hostel").eq(hostel)
+    if category and category.lower() != "all":
+        filter_expr = filter_expr & Attr("category").eq(category.lower())
+    if hostel and hostel.lower() != "all hostels" and hostel.lower() != "all":
+        filter_expr = filter_expr & Attr("hostel").contains(hostel)
     resp = table.scan(FilterExpression=filter_expr)
-    items = resp.get("Items", [])[:limit]
+    items = resp.get("Items", [])
+    # Sort newest first
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    items = items[:limit]
     return {"results": items, "count": len(items)}
 
 
@@ -69,8 +73,9 @@ def create_demand(req: CreateDemandRequest):
         "category": req.category,
         "keywords": req.keywords,
         "hostel": req.hostel,
-        "block": req.block,
+        "block": req.block or "",
         "campus_id": req.campus_id,
+        "urgency": req.urgency or "medium",
         "active": True,
         "created_at": now,
     })

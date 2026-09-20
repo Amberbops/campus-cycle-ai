@@ -18,6 +18,12 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import boto3
 from dotenv import load_dotenv
 
@@ -26,11 +32,13 @@ workspace_root = Path(__file__).resolve().parent.parent
 load_dotenv(workspace_root / ".env")
 load_dotenv()
 
-AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+USERS_TABLE = os.getenv("DYNAMO_USERS_TABLE", "CampusCycle_Users")
 DEMAND_TABLE = os.getenv("DYNAMO_DEMAND_TABLE", "CampusCycle_DemandRequests")
 ITEMS_TABLE = os.getenv("DYNAMO_ITEMS_TABLE", "CampusCycle_Items")
 CONFIG_TABLE = os.getenv("DYNAMO_CONFIG_TABLE", "CampusCycle_Config")
 MATCHES_TABLE = os.getenv("DYNAMO_MATCHES_TABLE", "CampusCycle_Matches")
+TASKS_TABLE = os.getenv("DYNAMO_TASKS_TABLE", "CampusCycle_Tasks")
 
 print("=" * 65)
 print("🚀 CampusCycle AI — AWS Live Production Seeder")
@@ -423,8 +431,159 @@ try:
 except Exception as err:
     print(f"⚠️ Config table seed note: {err}")
 
+print(f"\n👥 Seeding Campus Users into DynamoDB [{USERS_TABLE}]...")
+USERS = [
+    {
+        "user_id": "stud-101",
+        "name": "Priya S.",
+        "email": os.getenv("DEMO_STUDENT_EMAIL", "ambersaluja2006@gmail.com"),
+        "hostel": "Hostel 4 (Godavari)",
+        "room": "Block C, Room 214",
+        "role": "student",
+        "reputation_score": 140,
+        "items_diverted": 4,
+        "created_at": ago(100),
+    },
+    {
+        "user_id": "stud-102",
+        "name": "Rahul M.",
+        "email": "rahul.m@campus.edu",
+        "hostel": "Hostel 2 (Ganga)",
+        "room": "Block A, Room 108",
+        "role": "student",
+        "reputation_score": 95,
+        "items_diverted": 2,
+        "created_at": ago(95),
+    },
+    {
+        "user_id": "stud-103",
+        "name": "Amber S. (DrogonTech)",
+        "email": "amber@drogontech.io",
+        "hostel": "Hostel 4 (Godavari)",
+        "room": "Block B, Room 302",
+        "role": "student_lead",
+        "reputation_score": 280,
+        "items_diverted": 9,
+        "created_at": ago(120),
+    },
+    {
+        "user_id": "stud-104",
+        "name": "PurpleChiku25",
+        "email": "purplechiku@drogontech.io",
+        "hostel": "Hostel 7 (Kaveri)",
+        "room": "Block C, Room 105",
+        "role": "student_lead",
+        "reputation_score": 260,
+        "items_diverted": 8,
+        "created_at": ago(110),
+    },
+    {
+        "user_id": "stud-105",
+        "name": "Hostel Maintenance Desk",
+        "email": "hostel.maint@campus.edu",
+        "hostel": "Central Facilities",
+        "room": "Workshop B",
+        "role": "maintenance_staff",
+        "reputation_score": 500,
+        "items_diverted": 25,
+        "created_at": ago(200),
+    },
+]
+try:
+    user_table = dynamodb.Table(USERS_TABLE)
+    for u in USERS:
+        user_table.put_item(Item=u)
+    print(f"✅ Successfully seeded {len(USERS)} users into {USERS_TABLE}!")
+except Exception as err:
+    print(f"⚠️ User seed note: {err}")
+
+print(f"\n📦 Seeding Catalog Items into DynamoDB [{ITEMS_TABLE}]...")
+ITEMS = [
+    {
+        "item_id": "item-fan-001",
+        "name": "Table Fan (Oscillating 400mm)",
+        "category": "electronics",
+        "condition": "usable",
+        "status": "matched",
+        "decision": "repair",
+        "donor_id": "stud-103",
+        "location": "Hostel 4 (Godavari), Block B, Room 302",
+        "created_at": ago(2),
+        "co2_diverted_kg": "8.5",
+    },
+    {
+        "item_id": "item-lamp-002",
+        "name": "Study Table LED Lamp (Warm White)",
+        "category": "electronics",
+        "condition": "new-like",
+        "status": "available",
+        "decision": "reuse",
+        "donor_id": "stud-104",
+        "location": "Hostel 7 (Kaveri), Block C",
+        "created_at": ago(5),
+        "co2_diverted_kg": "3.2",
+    },
+    {
+        "item_id": "item-calc-003",
+        "name": "Casio FX-991EX Scientific Calculator",
+        "category": "electronics",
+        "condition": "usable",
+        "status": "available",
+        "decision": "reuse",
+        "donor_id": "stud-102",
+        "location": "Hostel 2 (Ganga), Block A",
+        "created_at": ago(8),
+        "co2_diverted_kg": "1.8",
+    },
+]
+try:
+    items_table = dynamodb.Table(ITEMS_TABLE)
+    for it in ITEMS:
+        items_table.put_item(Item=it)
+    print(f"✅ Successfully seeded {len(ITEMS)} items into {ITEMS_TABLE}!")
+except Exception as err:
+    print(f"⚠️ Items seed note: {err}")
+
+print(f"\n🛠️ Seeding Safety & Repair Tasks into DynamoDB [{TASKS_TABLE}]...")
+TASKS = [
+    {
+        "task_id": "task-ewaste-001",
+        "item_id": "item-cord-004",
+        "task_type": "safe_ewaste_recycle",
+        "item_name": "Frayed Laptop Charger Cable",
+        "category": "electronics",
+        "location": "Hostel 4 E-Waste Bin A",
+        "reason": "Damaged insulator sheath with exposed copper wiring; unsafe for dorm socket.",
+        "status": "in_progress",
+        "assigned_to": "Hostel Maintenance Desk",
+        "created_at": ago(12),
+    },
+    {
+        "task_id": "task-repair-002",
+        "item_id": "item-fan-001",
+        "task_type": "bearing_lubrication_check",
+        "item_name": "Table Fan (Oscillating 400mm)",
+        "category": "electronics",
+        "location": "Hostel 4 Workshop",
+        "reason": "Oscillation gear requires basic cleaning and light machine oil.",
+        "status": "completed",
+        "assigned_to": "Amber S.",
+        "created_at": ago(2),
+    },
+]
+try:
+    tasks_table = dynamodb.Table(TASKS_TABLE)
+    for t in TASKS:
+        tasks_table.put_item(Item=t)
+    print(f"✅ Successfully seeded {len(TASKS)} tasks into {TASKS_TABLE}!")
+except Exception as err:
+    print(f"⚠️ Tasks seed note: {err}")
+
 print("\n" + "=" * 65)
-print("🎉 Seeding complete! Your campus circular ecosystem is live.")
+print("🎉 Seeding complete! Your campus circular ecosystem is live on AWS DynamoDB.")
 print(f"• Active Student Wishlists : {len(EXPANDED_DEMANDS)}")
-print("• Ready for Scan & Match  : Yes (Live Camera + Direct Peer Email)")
+print(f"• Registered Campus Users  : {len(USERS)}")
+print(f"• Catalog Circular Items   : {len(ITEMS)}")
+print(f"• Safety & Repair Tasks    : {len(TASKS)}")
+print("• Ready for Scan & Match   : Yes (Live Camera + Direct Peer Email)")
 print("=" * 65)

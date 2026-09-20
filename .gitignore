@@ -8,9 +8,11 @@ dist/
 build/
 .pytest_cache/
 
-# Environment
+# Environment & Uploads
 .env
 *.env.local
+backend/uploads/
+uploads/
 
 # AWS
 .aws/

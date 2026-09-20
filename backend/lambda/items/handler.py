@@ -245,6 +245,14 @@ def connect_match(req: ConnectMatchRequest):
     match_id = req.match_id or str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    # Determine recipient: if DEMO_STUDENT_EMAIL or SES_RECIPIENT_OVERRIDE is set, route live to that Gmail!
+    target_email = req.requester_email or "student@campus.edu"
+    override_email = os.getenv("DEMO_STUDENT_EMAIL") or os.getenv("SES_RECIPIENT_OVERRIDE")
+    if override_email:
+        target_email = override_email
+
+    sender_email = os.getenv("SES_SENDER_EMAIL") or target_email
+
     # 1. Record match in DynamoDB
     try:
         table = dynamodb.Table(MATCHES_TABLE)
@@ -253,9 +261,9 @@ def connect_match(req: ConnectMatchRequest):
                 "match_id": match_id,
                 "item_name": req.item_name,
                 "requester_alias": req.requester_alias,
-                "requester_email": req.requester_email,
+                "requester_email": target_email,
                 "hostel_location": req.hostel_location,
-                "donor_alias": req.donor_alias,
+                "donor_alias": req.donor_alias or "Campus Peer",
                 "status": "paired",
                 "connected_at": now,
             }
@@ -263,56 +271,170 @@ def connect_match(req: ConnectMatchRequest):
     except Exception as exc:
         logger.warning("Could not write to DynamoDB Matches table: %s", exc)
 
-    # 2. Dispatch Direct Notification Email via Amazon SES
-    email_subject = f"♻️ CampusCycle Match: Peer matched your request for {req.item_name}!"
-    email_body_html = f"""
-    <html>
-      <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px;">
-        <div style="max-width: 540px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 24px;">
-          <h2 style="color: #2dd4bf; margin-top: 0;">CampusCycle AI · Match Connected</h2>
-          <p>Hi <b>{req.requester_alias}</b>,</p>
-          <p>Exciting news! A fellow student nearby has scanned an item matching your campus wishlist:</p>
-          <div style="background-color: #0f172a; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid #475569;">
-            <p style="margin: 0; font-size: 16px; font-weight: bold; color: #ffffff;">{req.item_name}</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;">Condition: <span style="color: #2dd4bf;">{req.condition}</span> · Location: {req.hostel_location}</p>
-          </div>
-          <p style="font-size: 14px; color: #cbd5e1;">Please coordinate handoff with your peer at <b>{req.hostel_location}</b>.</p>
-          <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
-          <p style="font-size: 11px; color: #64748b; text-align: center;">Powered by CampusCycle Circular AI · Automated AWS SES Notification</p>
-        </div>
-      </body>
-    </html>
-    """
+    # 2. Dispatch High-Quality Responsive HTML Email via Amazon SES
+    email_subject = f"♻️ CampusCycle Match: We found a match for your {req.item_name} request!"
+    donor_alias = req.donor_alias or "Anonymous Peer"
+    donor_contact = sender_email if "@" in sender_email else "peer@campuscycle.internal"
+
+    email_body_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusCycle Match Notification</title>
+</head>
+<body style="margin: 0; padding: 20px; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #e2e8f0;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" style="max-width: 580px; width: 100%; background: #111827; border-radius: 20px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" border="0" cellspacing="0" cellpadding="0">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="padding: 28px 32px; background: linear-gradient(135deg, #0d2824 0%, #111827 100%); border-bottom: 1px solid #1e293b;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <span style="background: #14b8a626; border: 1px solid #14b8a64d; color: #2dd4bf; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em;">
+                      CampusCycle AI · Circular Scout
+                    </span>
+                    <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 12px 0 4px 0; letter-spacing: -0.02em;">
+                      🎉 Great news! Match found for your request
+                    </h1>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+                      A peer in your residence scanned an item matching your campus wishlist!
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 28px 32px;">
+              <p style="font-size: 15px; color: #f1f5f9; margin-top: 0; line-height: 1.6;">
+                Hi <b>{req.requester_alias}</b>,
+              </p>
+              <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px;">
+                A student has scanned an item through <b>CampusCycle AI</b> that matches your dorm wishlist. Here are the verified triage details:
+              </p>
+
+              <!-- Item Card -->
+              <table role="presentation" width="100%" style="background: #0f172a; border-radius: 14px; border: 1px solid #334155; margin-bottom: 22px;" border="0" cellspacing="0" cellpadding="18">
+                <tr>
+                  <td>
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td>
+                          <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Matched Item</span>
+                          <h2 style="color: #ffffff; font-size: 18px; font-weight: 700; margin: 4px 0 8px 0;">
+                            {req.item_name}
+                          </h2>
+                        </td>
+                        <td align="right" valign="top">
+                          <span style="background: #22c55e20; border: 1px solid #22c55e40; color: #4ade80; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; text-transform: uppercase;">
+                            {req.condition}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="border-top: 1px solid #1e293b; padding-top: 12px;">
+                          <p style="margin: 0 0 6px 0; font-size: 13px; color: #cbd5e1;">
+                            📍 <b>Location:</b> <span style="color: #2dd4bf; font-weight: 600;">{req.hostel_location}</span>
+                          </p>
+                          <p style="margin: 0; font-size: 13px; color: #cbd5e1;">
+                            🌱 <b>Impact:</b> <span style="color: #34d399; font-weight: 600;">~8.5 kg CO₂ diverted from landfill</span>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Action button -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 22px;">
+                <tr>
+                  <td align="center">
+                    <a href="mailto:{donor_contact}?subject=Re:%20CampusCycle%20Handoff%20for%20{req.item_name}" style="background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); color: #022c22; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4);">
+                      Reply to Coordinate Handoff →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Safety Notice -->
+              <div style="background: #451a0333; border: 1px solid #b453094d; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 12px; color: #fde68a; line-height: 1.5;">
+                  ⚡ <b>Safety Tip:</b> Please physically inspect cables and plugs before operating in dorm rooms. Never leave appliances plugged in unattended.
+                </p>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 0;">
+                Thanks for keeping campus items out of landfills and in circular motion!
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; background: #0b0f19; border-top: 1px solid #1e293b; text-align: center;">
+              <p style="margin: 0 0 4px 0; font-size: 12px; color: #64748b; font-weight: 600;">
+                CampusCycle AI · Team DrogonTech
+              </p>
+              <p style="margin: 0; font-size: 10px; color: #475569;">
+                Automated Transactional Notification via Amazon SES (Simple Email Service) · AWS Serverless Architecture ({SES_REGION})
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
 
     ses_dispatched = False
     ses_error = None
+    ses_message_id = None
     try:
         ses_client = boto3.client("ses", region_name=SES_REGION)
         ses_resp = ses_client.send_email(
-            Source=SES_SENDER_EMAIL,
-            Destination={"ToAddresses": [req.requester_email]},
+            Source=sender_email,
+            Destination={"ToAddresses": [target_email]},
             Message={
                 "Subject": {"Data": email_subject},
                 "Body": {
                     "Html": {"Data": email_body_html},
-                    "Text": {"Data": f"Hi {req.requester_alias}, a student in {req.hostel_location} has matched your request for {req.item_name}!"},
+                    "Text": {
+                        "Data": f"Hi {req.requester_alias},\n\nA student in {req.hostel_location} has matched your request for {req.item_name}!\nPlease coordinate dorm pickup.\n\n— CampusCycle AI"
+                    },
                 },
             },
         )
         ses_dispatched = True
-        logger.info("SES email dispatched: messageId=%s", ses_resp.get("MessageId"))
+        ses_message_id = ses_resp.get("MessageId")
+        logger.info("SES email dispatched successfully: MessageId=%s to=%s", ses_message_id, target_email)
     except Exception as exc:
         ses_error = str(exc)
-        logger.info("SES notice (sandbox/offline mode): %s", exc)
+        logger.warning("SES dispatch note: %s", exc)
 
-    _record_audit(match_id, req.donor_alias or "student", "peer_match_connected", f"Matched {req.item_name} with {req.requester_alias} ({req.requester_email})")
+    _record_audit(
+        match_id,
+        req.donor_alias or "student",
+        "peer_match_connected",
+        f"Matched {req.item_name} with {req.requester_alias} ({target_email}) - SES: {ses_dispatched}",
+    )
 
     return {
         "status": "paired",
         "match_id": match_id,
         "recipient_alias": req.requester_alias,
-        "recipient_email": req.requester_email,
+        "recipient_email": target_email,
         "ses_dispatched": ses_dispatched,
+        "ses_message_id": ses_message_id,
         "ses_error": ses_error,
         "subject": email_subject,
         "preview": f"Hi {req.requester_alias}, a student in {req.hostel_location} has an item matching your wishlist!",
@@ -321,4 +443,5 @@ def connect_match(req: ConnectMatchRequest):
 
 handler = Mangum(app, lifespan="off")
 lambda_handler = handler
+
 
